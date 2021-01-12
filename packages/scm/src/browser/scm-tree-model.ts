@@ -248,14 +248,14 @@ export abstract class ScmTreeModel extends TreeModelImpl {
         const id = `${parent.groupId}:${String(sourceUri)}`;
         const oldNode = this.getNode(id);
         const folderNode: ScmFileChangeFolderNode = {
-                id,
-                groupId: parent.groupId,
-                path: nodeRelativePath,
-                sourceUri: String(sourceUri),
-                children: [],
-                parent,
-                expanded: ExpandableTreeNode.is(oldNode) ? oldNode.expanded : defaultExpansion,
-                selected: SelectableTreeNode.is(oldNode) && oldNode.selected,
+            id,
+            groupId: parent.groupId,
+            path: nodeRelativePath,
+            sourceUri: String(sourceUri),
+            children: [],
+            parent,
+            expanded: ExpandableTreeNode.is(oldNode) ? oldNode.expanded : defaultExpansion,
+            selected: SelectableTreeNode.is(oldNode) && oldNode.selected,
         };
         folderNode.children = this.buildFileChangeTree(resources, start, end, level, folderNode);
         return folderNode;
@@ -289,7 +289,7 @@ export abstract class ScmTreeModel extends TreeModelImpl {
         if (ScmFileChangeFolderNode.is(node) || ScmFileChangeNode.is(node)) {
             const parentNode = node.parent;
             if (ExpandableTreeNode.is(parentNode)) {
-            await this.revealNode(parentNode);
+                await this.revealNode(parentNode);
                 if (!parentNode.expanded) {
                     await this.expandNode(parentNode);
                 }
