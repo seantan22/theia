@@ -17,7 +17,7 @@
 import { inject, injectable, interfaces } from 'inversify';
 import { AbstractViewContribution, bindViewContribution } from '@theia/core/lib/browser/shell/view-contribution';
 import { TabBarToolbarContribution, TabBarToolbarRegistry } from '@theia/core/lib/browser/shell/tab-bar-toolbar';
-import { Command, CommandRegistry, MessageService } from '@theia/core/lib/common';
+import { Command, CommandRegistry, Emitter, MessageService } from '@theia/core/lib/common';
 import { Widget, WidgetFactory } from '@theia/core/lib/browser';
 import { SampleViewUnclosableView } from './sample-unclosable-view';
 
@@ -32,7 +32,9 @@ export const SampleToolBarCommand: Command = {
 export class SampleUnclosableViewContribution extends AbstractViewContribution<SampleViewUnclosableView> implements TabBarToolbarContribution {
 
     static readonly SAMPLE_UNCLOSABLE_VIEW_TOGGLE_COMMAND_ID = 'sampleUnclosableView:toggle';
+
     protected toolbarItemState = false;
+    protected readonly onSampleToolbarStateChangedEmitter = new Emitter<void>();
 
     @inject(MessageService) protected readonly messageService: MessageService;
 
@@ -58,7 +60,7 @@ export class SampleUnclosableViewContribution extends AbstractViewContribution<S
         super.registerCommands(registry);
         registry.registerCommand(SampleToolBarCommand, {
             execute: () => {
-                this.toolbarItemState = !this.toolbarItemState;
+                this.updateToolbarItemState();
                 this.messageService.info(`${SampleToolBarCommand.label} is toggled = ${this.toolbarItemState}`);
             },
             isEnabled: widget => this.withWidget(widget, () => true),
@@ -73,7 +75,13 @@ export class SampleUnclosableViewContribution extends AbstractViewContribution<S
             command: SampleToolBarCommand.id,
             tooltip: 'Click to Toggle Toolbar Item',
             priority: 0,
+            onDidChange: this.onSampleToolbarStateChangedEmitter.event
         });
+    }
+
+    protected updateToolbarItemState(): void {
+        this.toolbarItemState = !this.toolbarItemState;
+        this.onSampleToolbarStateChangedEmitter.fire();
     }
 }
 
