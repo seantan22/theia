@@ -418,8 +418,29 @@ export class WorkspaceFrontendContribution implements CommandContribution, Keybi
         } while (selected && exist && !overwrite);
         if (selected) {
             try {
+
+                /* APPROACH #1 */
+                // // Create temp location
+                // const temp = new URI(uri.toString() + '_original.tmp');
+                // // Copy URI to temp location
+                // await this.fileService.copy(uri, temp);
+                // // Save dirty changes
+                // await this.commandRegistry.executeCommand(CommonCommands.SAVE.id);
+                // // Save As...
+                // await this.fileService.move(uri, selected, { overwrite });
+                // // Revert back to original
+                // await this.fileService.move(temp, uri, { overwrite });
+
+                /* APPROACH #2 */
+                // Move original (missing dirty changes) to selected location
+                await this.fileService.move(uri, selected, { overwrite });
+                // Copy from selected location back to original (still missing dirty changes)
+                overwrite = true;
+                await this.fileService.copy(selected, uri, { overwrite });
+                // Open the selected location
+                await open(this.openerService, selected);
+                // Save dirty changes on selected
                 await this.commandRegistry.executeCommand(CommonCommands.SAVE.id);
-                await this.fileService.copy(uri, selected, { overwrite });
             } catch (e) {
                 console.warn(e);
             }
