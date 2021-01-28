@@ -17,6 +17,7 @@
 import { injectable, interfaces, postConstruct, inject } from 'inversify';
 import { SourceTreeWidget } from '@theia/core/lib/browser/source-tree';
 import { VSXExtensionsSource, VSXExtensionsSourceOptions } from './vsx-extensions-source';
+import { VSXExtension } from './vsx-extension';
 
 @injectable()
 export class VSXExtensionsWidgetOptions extends VSXExtensionsSourceOptions {
@@ -50,27 +51,50 @@ export class VSXExtensionsWidget extends SourceTreeWidget {
     protected readonly extensionsSource: VSXExtensionsSource;
 
     @postConstruct()
-    protected init(): void {
+    protected async init(): Promise<void> {
         super.init();
         this.addClass('theia-vsx-extensions');
 
         this.id = VSXExtensionsWidget.ID + ':' + this.options.id;
-        const title = this.computeTitle();
-        this.title.label = title;
-        this.title.caption = title;
 
         this.toDispose.push(this.extensionsSource);
         this.source = this.extensionsSource;
+
+        const title = await this.updateTitle();
+        this.title.label = title;
+        this.title.caption = title;
+
+        this.toDispose.push(this.source.onDidChange(async () => {
+            const updatedTitle = await this.updateTitle();
+            this.title.label = updatedTitle;
+        }));
     }
 
-    protected computeTitle(): string {
+    protected async updateTitle(): Promise<string> {
+        let count: number = 0;
         if (this.id === VSXExtensionsWidget.INSTALLED_ID) {
-            return 'Installed';
-        }
-        if (this.id === VSXExtensionsWidget.BUILT_IN_ID) {
-            return 'Built-in';
+            count = await this.countExtensions(this.id);
+            return `Installed (${count})`;
+        } else if (this.id === VSXExtensionsWidget.BUILT_IN_ID) {
+            count = await this.countExtensions(this.id);
+            return `Built-in (${count})`;
         }
         return 'Open VSX Registry';
+    }
+
+    /**
+     * Count the number of extensions for the given widget id.
+     * @param widgetId the widget id.
+     *
+     * @returns the extension count for a given widget id.
+     */
+    protected async countExtensions(widgetId: string): Promise<number> {
+        const elements = await this.source?.getElements() || [];
+        return [...elements].filter(e => {
+            const extension = e as VSXExtension;
+            return widgetId === VSXExtensionsWidget.BUILT_IN_ID
+                ? extension.builtin : !extension.builtin;
+        }).length;
     }
 
 }

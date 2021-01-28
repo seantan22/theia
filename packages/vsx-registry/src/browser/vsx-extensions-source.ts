@@ -17,6 +17,7 @@
 import { injectable, inject, postConstruct } from 'inversify';
 import { TreeSource, TreeElement } from '@theia/core/lib/browser/source-tree';
 import { VSXExtensionsModel } from './vsx-extensions-model';
+import { Emitter } from '@theia/core/lib/common';
 
 @injectable()
 export class VSXExtensionsSourceOptions {
@@ -35,10 +36,16 @@ export class VSXExtensionsSource extends TreeSource {
     @inject(VSXExtensionsModel)
     protected readonly model: VSXExtensionsModel;
 
+    protected readonly onDidUpdateEmitter = new Emitter<string>();
+    readonly onDidUpdate = this.onDidUpdateEmitter.event;
+
     @postConstruct()
     protected async init(): Promise<void> {
         this.fireDidChange();
-        this.toDispose.push(this.model.onDidChange(() => this.fireDidChange()));
+        this.toDispose.push(this.model.onDidChange(() => {
+            this.fireDidChange();
+            this.onDidChangeEmitter.fire();
+        }));
     }
 
     *getElements(): IterableIterator<TreeElement> {
