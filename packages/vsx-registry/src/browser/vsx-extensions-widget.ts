@@ -17,6 +17,7 @@
 import { injectable, interfaces, postConstruct, inject } from 'inversify';
 import { SourceTreeWidget } from '@theia/core/lib/browser/source-tree';
 import { VSXExtensionsSource, VSXExtensionsSourceOptions } from './vsx-extensions-source';
+import { VSXExtension } from './vsx-extension';
 
 @injectable()
 export class VSXExtensionsWidgetOptions extends VSXExtensionsSourceOptions {
@@ -50,27 +51,45 @@ export class VSXExtensionsWidget extends SourceTreeWidget {
     protected readonly extensionsSource: VSXExtensionsSource;
 
     @postConstruct()
-    protected init(): void {
+    protected async init(): Promise<void> {
         super.init();
         this.addClass('theia-vsx-extensions');
 
         this.id = VSXExtensionsWidget.ID + ':' + this.options.id;
-        const title = this.computeTitle();
-        this.title.label = title;
-        this.title.caption = title;
 
         this.toDispose.push(this.extensionsSource);
         this.source = this.extensionsSource;
+
+        const title = await this.computeTitle();
+        this.title.label = title;
+        this.title.caption = title;
+
+        this.source.onDidChange(async () => {
+            const updatedTitle = await this.computeTitle();
+            this.title.label = updatedTitle;
+        });
     }
 
-    protected computeTitle(): string {
+    protected async computeTitle(): Promise<string> {
         if (this.id === VSXExtensionsWidget.INSTALLED_ID) {
             return 'Installed';
         }
         if (this.id === VSXExtensionsWidget.BUILT_IN_ID) {
-            return 'Built-in';
+            const count = await this.countBuiltinExtensions();
+            return `Built-in ${count}`;
         }
         return 'Open VSX Registry';
+    }
+
+    protected async countBuiltinExtensions(): Promise<number> {
+        const elements = await this.source?.getElements();
+        if (!elements) {
+            return 0;
+        }
+        return Array.from(elements).filter(e => {
+            const extension = e as VSXExtension;
+            return extension.builtin;
+        }).length;
     }
 
 }
