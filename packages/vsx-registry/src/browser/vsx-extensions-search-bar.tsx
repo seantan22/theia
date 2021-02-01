@@ -18,6 +18,9 @@ import * as React from 'react';
 import { injectable, postConstruct, inject } from 'inversify';
 import { ReactWidget, Message } from '@theia/core/lib/browser/widgets';
 import { VSXExtensionsSearchModel } from './vsx-extensions-search-model';
+import { Emitter } from '@theia/core/lib/common';
+
+export type queryPrefix = 'installed' | 'builtin';
 
 @injectable()
 export class VSXExtensionsSearchBar extends ReactWidget {
@@ -25,11 +28,22 @@ export class VSXExtensionsSearchBar extends ReactWidget {
     @inject(VSXExtensionsSearchModel)
     protected readonly model: VSXExtensionsSearchModel;
 
+    protected readonly onDidPrefixQueryEmitter = new Emitter<queryPrefix>();
+    readonly onDidPrefixQuery = this.onDidPrefixQueryEmitter.event;
+
     @postConstruct()
     protected init(): void {
         this.id = 'vsx-extensions-search-bar';
         this.addClass('theia-vsx-extensions-search-bar');
-        this.model.onDidChangeQuery(() => this.update());
+        this.model.onDidChangeQuery(() => {
+            const query = this.model.query;
+            if (query.startsWith('@installed')) {
+                this.onDidPrefixQueryEmitter.fire('installed');
+            } else if (query.startsWith('@builtin')) {
+                this.onDidPrefixQueryEmitter.fire('builtin');
+            }
+            this.update();
+        });
     }
 
     protected input: HTMLInputElement | undefined;

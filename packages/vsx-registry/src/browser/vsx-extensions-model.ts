@@ -21,7 +21,7 @@ import * as sanitize from 'sanitize-html';
 import { Emitter } from '@theia/core/lib/common/event';
 import { CancellationToken, CancellationTokenSource } from '@theia/core/lib/common/cancellation';
 import { VSXRegistryAPI, VSXResponseError } from '../common/vsx-registry-api';
-import { VSXSearchParam } from '../common/vsx-registry-types';
+import { VSXSearchParam, VSXSearchResult } from '../common/vsx-registry-types';
 import { HostedPluginSupport } from '@theia/plugin-ext/lib/hosted/browser/hosted-plugin';
 import { VSXExtension, VSXExtensionFactory } from './vsx-extension';
 import { ProgressService } from '@theia/core/lib/common/progress-service';
@@ -33,6 +33,9 @@ export class VSXExtensionsModel {
 
     protected readonly onDidChangeEmitter = new Emitter<void>();
     readonly onDidChange = this.onDidChangeEmitter.event;
+
+    protected readonly onDidResultsEmitter = new Emitter<number>();
+    readonly onDidResults = this.onDidResultsEmitter.event;
 
     @inject(VSXRegistryAPI)
     protected readonly api: VSXRegistryAPI;
@@ -53,18 +56,25 @@ export class VSXExtensionsModel {
 
     @postConstruct()
     protected async init(): Promise<void> {
-        await Promise.all([
-            this.initInstalled(),
-            this.initSearchResult()
-        ]);
+        // await Promise.all([
+        //     this.initInstalled(),
+        //     this.initSearchResult()
+        // ]);
+        this.initInstalled();
+        this.initSearchResult();
         this.initialized.resolve();
     }
 
     protected async initInstalled(): Promise<void> {
         await this.pluginSupport.willStart;
-        this.pluginSupport.onDidChangePlugins(() => this.updateInstalled());
+        this.pluginSupport.onDidChangePlugins(() => {
+            this.updateInstalled();
+            this._defaultInstalled = this._installed;
+        });
         try {
             await this.updateInstalled();
+            this._defaultInstalled = this._installed;
+            await this.updateSearchResult();
         } catch (e) {
             console.error(e);
         }
@@ -88,6 +98,8 @@ export class VSXExtensionsModel {
     get installed(): IterableIterator<string> {
         return this._installed.values();
     }
+
+    protected _defaultInstalled = new Set<string>();
 
     protected _searchResult = new Set<string>();
     get searchResult(): IterableIterator<string> {
@@ -132,31 +144,101 @@ export class VSXExtensionsModel {
     }, 150);
     protected doUpdateSearchResult(param: VSXSearchParam, token: CancellationToken): Promise<void> {
         return this.doChange(async () => {
-            const result = await this.api.search(param);
-            if (token.isCancellationRequested) {
+            if (token.isCancellationRequested || param.query === undefined) {
                 return;
             }
-            const searchResult = new Set<string>();
-            for (const data of result.extensions) {
-                const id = data.namespace.toLowerCase() + '.' + data.name.toLowerCase();
-                const extension = this.api.getLatestCompatibleVersion(data.allVersions);
-                if (!extension) {
-                    continue;
-                }
-                this.setExtension(id).update(Object.assign(data, {
-                    publisher: data.namespace,
-                    downloadUrl: data.files.download,
-                    iconUrl: data.files.icon,
-                    readmeUrl: data.files.readme,
-                    licenseUrl: data.files.license,
-                    version: extension.version
-                }));
-                searchResult.add(id);
+            if (param.query === '') {
+                this._installed = this._defaultInstalled;
+            } else if (this.isPrefixQuery(param.query)) {
+                this.filterLocalExtensions(param.query);
+            } else {
+                const result = await this.api.search(param);
+                this.getSearchResults(result);
             }
-            this._searchResult = searchResult;
         }, token);
     }
 
+    /**
+     *  Get local extensions that satisfy the search query.
+     *
+     * @param query the search query.
+     */
+    protected filterLocalExtensions(query: string): void {
+        const plugins = this.pluginSupport.plugins;
+        const prefix = this.getPrefix(query);
+        const modifiedQuery = query.replace(prefix, '').trim().toLowerCase();
+        const installed = new Set<string>();
+        for (const plugin of plugins) {
+            const id = plugin.model.id;
+            const extension = this.getExtension(id);
+            if (!extension) {
+                continue;
+            }
+            if (this.isBuiltInPrefix(prefix) && extension.builtin) {
+                this.matchResults(extension, modifiedQuery, installed);
+            } else if (this.isInstalledPrefix(prefix)) {
+                this.matchResults(extension, modifiedQuery, installed);
+            }
+
+        }
+        this._installed = installed;
+
+        if (this.isInstalledPrefix(query) || this.isBuiltInPrefix(query)) {
+            this.onDidResultsEmitter.fire(this._installed.size);
+        }
+    }
+
+    /**
+     * Add an extension to results if it satisfies the query based on id, name or description.
+     *
+     * @param extension the vsx extension.
+     * @param query the search query.
+     * @param results the set of results.
+     */
+    protected matchResults(extension: VSXExtension, query: string, results: Set<string>): void {
+        const name = extension.displayName;
+        const description = extension.description;
+        if (!name || !description) {
+            return;
+        }
+        if (extension.id.toLowerCase().indexOf(query) > -1
+            || name.toLowerCase().indexOf(query) > -1
+            || description.toLowerCase().indexOf(query) > -1) {
+            results.add(extension.id);
+        }
+    }
+
+    /**
+     *  Get Open-VSX Registry extensions that satisfy the search query.
+     *
+     * @param query the search query.
+     */
+    protected getSearchResults(result: VSXSearchResult): void {
+        const searchResult = new Set<string>();
+        for (const data of result.extensions) {
+            const id = data.namespace.toLowerCase() + '.' + data.name.toLowerCase();
+            const extension = this.api.getLatestCompatibleVersion(data.allVersions);
+            if (!extension) {
+                continue;
+            }
+            this.setExtension(id).update(Object.assign(data, {
+                publisher: data.namespace,
+                downloadUrl: data.files.download,
+                iconUrl: data.files.icon,
+                readmeUrl: data.files.readme,
+                licenseUrl: data.files.license,
+                version: extension.version
+            }));
+            searchResult.add(id);
+        }
+        this._searchResult = searchResult;
+
+        this.onDidResultsEmitter.fire(this._searchResult.size);
+    }
+
+    /**
+     * Gets all installed extensions including built-ins.
+     */
     protected async updateInstalled(): Promise<void> {
         return this.doChange(async () => {
             const plugins = this.pluginSupport.plugins;
@@ -267,6 +349,22 @@ export class VSXExtensionsModel {
             return extensionA.publisher.localeCompare(extensionB.publisher);
         }
         return 0;
+    }
+
+    protected getPrefix(query: string): string {
+        return query.split(' ')[0];
+    }
+
+    protected isPrefixQuery(query: string): boolean {
+        return query.startsWith('@');
+    }
+
+    protected isInstalledPrefix(prefix: string): boolean {
+        return /@installed/i.test(prefix);
+    }
+
+    protected isBuiltInPrefix(prefix: string): boolean {
+        return /@builtin/i.test(prefix);
     }
 
 }

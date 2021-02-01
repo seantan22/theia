@@ -46,6 +46,14 @@
     padding-bottom: calc(var(--theia-ui-padding)/2);
 }
 
+.theia-vsx-extensions-no-results {
+    padding-left: calc(var(--theia-ui-padding)*3);
+}
+
+.hide {
+    display: none !important;
+}
+
 .theia-vsx-extension {
     display: flex;
     flex-direction: row;
@@ -317,4 +325,3 @@
 .theia-vsx-extension-action-bar .action.prominent:hover {
     background-color: var(--theia-extensionButton-prominentHoverBackground);
 }
-
