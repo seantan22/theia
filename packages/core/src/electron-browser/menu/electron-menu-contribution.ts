@@ -24,6 +24,7 @@ import { KeybindingContribution, KeybindingRegistry } from '../../browser';
 import { FrontendApplication, FrontendApplicationContribution, CommonMenus } from '../../browser';
 import { ElectronMainMenuFactory } from './electron-main-menu-factory';
 import { FrontendApplicationStateService, FrontendApplicationState } from '../../browser/frontend-application-state';
+import { WindowPreferences } from '../window/window-preferences';
 
 export namespace ElectronCommands {
     export const TOGGLE_DEVELOPER_TOOLS: Command = {
@@ -70,6 +71,9 @@ export class ElectronMenuContribution implements FrontendApplicationContribution
 
     @inject(FrontendApplicationStateService)
     protected readonly stateService: FrontendApplicationStateService;
+
+    @inject(WindowPreferences)
+    protected readonly windowPreferences: WindowPreferences;
 
     constructor(
         @inject(ElectronMainMenuFactory) protected readonly factory: ElectronMainMenuFactory
@@ -155,16 +159,22 @@ export class ElectronMenuContribution implements FrontendApplicationContribution
             execute: () => {
                 const webContents = currentWindow.webContents;
                 webContents.setZoomLevel(webContents.zoomLevel + 0.5);
+                console.log(`ZOOM LEVEL = ${webContents.zoomLevel}`);
             }
         });
         registry.registerCommand(ElectronCommands.ZOOM_OUT, {
             execute: () => {
                 const webContents = currentWindow.webContents;
                 webContents.setZoomLevel(webContents.zoomLevel - 0.5);
+                console.log(`ZOOM LEVEL = ${webContents.zoomLevel}`);
             }
         });
         registry.registerCommand(ElectronCommands.RESET_ZOOM, {
-            execute: () => currentWindow.webContents.setZoomLevel(0)
+            execute: () => {
+                const webContents = currentWindow.webContents;
+                webContents.setZoomLevel(0);
+                console.log(`ZOOM LEVEL = ${webContents.zoomLevel}`);
+            }
         });
     }
 

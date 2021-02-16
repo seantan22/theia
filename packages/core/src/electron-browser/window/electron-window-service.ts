@@ -14,11 +14,14 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
+import * as electron from 'electron';
 import { injectable, inject } from 'inversify';
 import { remote } from 'electron';
 import { NewWindowOptions } from '../../browser/window/window-service';
 import { DefaultWindowService } from '../../browser/window/default-window-service';
 import { ElectronMainWindowService } from '../../electron-common/electron-main-window-service';
+import { WindowConfiguration, WindowPreferences } from './window-preferences';
+import { PreferenceChangeEvent } from '../../browser';
 
 @injectable()
 export class ElectronWindowService extends DefaultWindowService {
@@ -33,8 +36,16 @@ export class ElectronWindowService extends DefaultWindowService {
      */
     protected closeOnUnload: boolean = false;
 
+    /**
+     * Do not update window zoom level if preference is unchanged.
+     */
+    protected prevPreferredZoomLevel: number | undefined;
+
     @inject(ElectronMainWindowService)
     protected readonly delegate: ElectronMainWindowService;
+
+    @inject(WindowPreferences)
+    protected readonly windowPreferences: WindowPreferences;
 
     openNewWindow(url: string, { external }: NewWindowOptions = {}): undefined {
         this.delegate.openNewWindow(url, { external });
@@ -67,6 +78,14 @@ export class ElectronWindowService extends DefaultWindowService {
                 return this.preventUnload(event);
             }
         });
+
+        // Update changes to zoom level.
+        this.updateWindowZoomLevel();
+        this.windowPreferences.onPreferenceChanged((e: PreferenceChangeEvent<WindowConfiguration>) => {
+            if (e.affects('window.zoomLevel')) {
+                this.updateWindowZoomLevel();
+            }
+        });
     }
 
     /**
@@ -84,5 +103,23 @@ export class ElectronWindowService extends DefaultWindowService {
             detail: 'Any unsaved changes will not be saved.'
         });
         return response === 0; // 'Yes', close the window.
+    }
+
+    /**
+     * Updates the window zoom level based on the amount set in `Preferences`.
+     */
+    protected updateWindowZoomLevel(): void {
+        const preferredZoomLevel = this.windowPreferences['window.zoomLevel'];
+        if (this.prevPreferredZoomLevel === preferredZoomLevel) {
+            return;
+        }
+        this.prevPreferredZoomLevel = preferredZoomLevel;
+
+        const currentWindow = electron.remote.getCurrentWindow();
+        const webContents = currentWindow.webContents;
+
+        if (webContents.getZoomLevel() !== preferredZoomLevel) {
+            webContents.setZoomLevel(preferredZoomLevel);
+        }
     }
 }
