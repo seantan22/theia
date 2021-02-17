@@ -82,7 +82,8 @@ export class ElectronWindowService extends DefaultWindowService {
         // Update changes to zoom level.
         this.updateWindowZoomLevel();
         this.windowPreferences.onPreferenceChanged((e: PreferenceChangeEvent<WindowConfiguration>) => {
-            if (e.affects('window.zoomLevel')) {
+            if (e.preferenceName === 'window.zoomLevel') {
+                console.log('updating zoom...');
                 this.updateWindowZoomLevel();
             }
         });

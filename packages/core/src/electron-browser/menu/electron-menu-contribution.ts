@@ -20,7 +20,7 @@ import {
     Command, CommandContribution, CommandRegistry,
     isOSX, isWindows, MenuModelRegistry, MenuContribution, Disposable
 } from '../../common';
-import { KeybindingContribution, KeybindingRegistry } from '../../browser';
+import { KeybindingContribution, KeybindingRegistry, PreferenceScope, PreferenceService } from '../../browser';
 import { FrontendApplication, FrontendApplicationContribution, CommonMenus } from '../../browser';
 import { ElectronMainMenuFactory } from './electron-main-menu-factory';
 import { FrontendApplicationStateService, FrontendApplicationState } from '../../browser/frontend-application-state';
@@ -74,6 +74,9 @@ export class ElectronMenuContribution implements FrontendApplicationContribution
 
     @inject(WindowPreferences)
     protected readonly windowPreferences: WindowPreferences;
+
+    @inject(PreferenceService)
+    protected preferenceService: PreferenceService;
 
     constructor(
         @inject(ElectronMainMenuFactory) protected readonly factory: ElectronMainMenuFactory
@@ -156,24 +159,24 @@ export class ElectronMenuContribution implements FrontendApplicationContribution
         });
 
         registry.registerCommand(ElectronCommands.ZOOM_IN, {
-            execute: () => {
+            execute: async () => {
                 const webContents = currentWindow.webContents;
-                webContents.setZoomLevel(webContents.zoomLevel + 0.5);
-                console.log(`ZOOM LEVEL = ${webContents.zoomLevel}`);
+                const zoomLevel = webContents.zoomLevel + 0.5;
+                console.log('zoom-level: ', this.preferenceService.get('window.zoomLevel'));
+                await this.preferenceService.set('window.zoomLevel', zoomLevel, PreferenceScope.User);
             }
         });
         registry.registerCommand(ElectronCommands.ZOOM_OUT, {
-            execute: () => {
+            execute: async () => {
                 const webContents = currentWindow.webContents;
-                webContents.setZoomLevel(webContents.zoomLevel - 0.5);
-                console.log(`ZOOM LEVEL = ${webContents.zoomLevel}`);
+                const zoomLevel = webContents.zoomLevel - 0.5;
+                console.log('zoom-level: ', this.preferenceService.get('window.zoomLevel'));
+                await this.preferenceService.set('window.zoomLevel', zoomLevel, PreferenceScope.User);
             }
         });
         registry.registerCommand(ElectronCommands.RESET_ZOOM, {
-            execute: () => {
-                const webContents = currentWindow.webContents;
-                webContents.setZoomLevel(0);
-                console.log(`ZOOM LEVEL = ${webContents.zoomLevel}`);
+            execute: async () => {
+                await this.preferenceService.set('window.zoomLevel', 0, PreferenceScope.User);
             }
         });
     }
