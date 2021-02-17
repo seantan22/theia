@@ -61,7 +61,7 @@ export const PreferenceNumberInput: React.FC<PreferenceNumberInputProps> = ({ pr
      */
     const getInputValidation = (input: number | undefined): { isValid: boolean, message: string } => {
         const errorMessages: string[] = [];
-        if (!input) {
+        if (input === undefined) {
             return { isValid: false, message: 'Value must be a number.' };
         };
         if (data.minimum && input < data.minimum) {
