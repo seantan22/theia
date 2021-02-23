@@ -27,6 +27,7 @@ import {
 import { PreferenceConfigurations } from '@theia/core/lib/browser/preferences/preference-configurations';
 import React = require('react');
 import { PreferenceTreeModel, PreferenceTreeNodeRow, PreferenceTreeNodeProps } from '../preference-tree-model';
+import { PreferencesSearchbarWidget } from './preference-searchbar-widget';
 
 @injectable()
 export class PreferencesTreeWidget extends TreeWidget {
@@ -40,6 +41,7 @@ export class PreferencesTreeWidget extends TreeWidget {
     @inject(PreferenceTreeModel) readonly model: PreferenceTreeModel;
     @inject(TreeProps) protected readonly treeProps: TreeProps;
     @inject(ContextMenuRenderer) protected readonly contextMenuRenderer: ContextMenuRenderer;
+    @inject(PreferencesSearchbarWidget) readonly searchbarWidget: PreferencesSearchbarWidget;
 
     @postConstruct()
     init(): void {
@@ -47,6 +49,7 @@ export class PreferencesTreeWidget extends TreeWidget {
         this.id = PreferencesTreeWidget.ID;
         this.toDispose.pushAll([
             this.model.onFilterChanged(() => {
+                this.searchbarWidget.onResultsChangedEmitter.fire(this.calcResultsCount());
                 this.updateRows();
             }),
         ]);
@@ -88,5 +91,9 @@ export class PreferencesTreeWidget extends TreeWidget {
             return <div className='preferences-tree-spacer' />;
         }
         return super.renderExpansionToggle(node, props);
+    }
+
+    protected calcResultsCount(): number {
+        return this.model.totalVisibleLeaves;
     }
 }
