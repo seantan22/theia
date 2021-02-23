@@ -49,7 +49,7 @@ export class PreferencesTreeWidget extends TreeWidget {
         this.id = PreferencesTreeWidget.ID;
         this.toDispose.pushAll([
             this.model.onFilterChanged(() => {
-                this.searchbarWidget.onResultsChangedEmitter.fire(this.calcResultsCount());
+                this.searchbarWidget.updateResultCount(this.calcResultsCount());
                 this.updateRows();
             }),
         ]);

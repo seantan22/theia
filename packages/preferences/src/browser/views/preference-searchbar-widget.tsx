@@ -28,8 +28,6 @@ export class PreferencesSearchbarWidget extends ReactWidget {
 
     protected readonly onFilterStringChangedEmitter = new Emitter<string>();
     readonly onFilterChanged = this.onFilterStringChangedEmitter.event;
-    readonly onResultsChangedEmitter = new Emitter<number>();
-    readonly onResultsChanged = this.onResultsChangedEmitter.event;
 
     protected searchbarRef: React.RefObject<HTMLInputElement> = React.createRef<HTMLInputElement>();
     protected resultsCount: number = 0;
@@ -48,7 +46,6 @@ export class PreferencesSearchbarWidget extends ReactWidget {
 
     protected search = debounce((value: string) => {
         this.onFilterStringChangedEmitter.fire(value);
-        this.onResultsChanged(count => this.resultsCount = count);
         this.update();
     }, 200);
 
@@ -116,5 +113,14 @@ export class PreferencesSearchbarWidget extends ReactWidget {
                 </div>
             </div >
         );
+    }
+
+    /**
+     * Updates the result count.
+     * @param count the result count.
+     */
+    updateResultCount(count: number): void {
+        this.resultsCount = count;
+        this.update();
     }
 }
