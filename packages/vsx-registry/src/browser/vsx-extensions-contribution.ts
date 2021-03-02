@@ -22,8 +22,9 @@ import { Widget } from '@theia/core/lib/browser/widgets/widget';
 import { VSXExtensionsModel } from './vsx-extensions-model';
 import { ColorContribution } from '@theia/core/lib/browser/color-application-contribution';
 import { ColorRegistry, Color } from '@theia/core/lib/browser/color-registry';
-import { TabBarToolbarContribution, TabBarToolbarRegistry } from '@theia/core/lib/browser/shell/tab-bar-toolbar';
+import { TabBarToolbarContribution, TabBarToolbarItem, TabBarToolbarRegistry } from '@theia/core/lib/browser/shell/tab-bar-toolbar';
 import { FrontendApplicationContribution, FrontendApplication } from '@theia/core/lib/browser/frontend-application';
+import { MessageService, Mutable } from '@theia/core/lib/common';
 
 export namespace VSXExtensionsCommands {
     export const CLEAR_ALL: Command = {
@@ -31,6 +32,11 @@ export namespace VSXExtensionsCommands {
         category: 'Extensions',
         label: 'Clear Search Results',
         iconClass: 'clear-all'
+    };
+    export const HELLO_WORLD: Command = {
+        id: 'vsxExtensions.helloWorld',
+        category: 'Extensions',
+        label: 'Hello World'
     };
 }
 
@@ -40,6 +46,15 @@ export class VSXExtensionsContribution extends AbstractViewContribution<VSXExten
 
     @inject(VSXExtensionsModel)
     protected readonly model: VSXExtensionsModel;
+
+    @inject(CommandRegistry)
+    protected readonly commandRegistry: CommandRegistry;
+
+    @inject(TabBarToolbarRegistry)
+    protected readonly tabbarToolbarRegistry: TabBarToolbarRegistry;
+
+    @inject(MessageService)
+    protected readonly messageService: MessageService;
 
     constructor() {
         super({
@@ -65,6 +80,10 @@ export class VSXExtensionsContribution extends AbstractViewContribution<VSXExten
             isEnabled: w => this.withWidget(w, () => !!this.model.search.query),
             isVisible: w => this.withWidget(w, () => true)
         });
+
+        commands.registerCommand(VSXExtensionsCommands.HELLO_WORLD, {
+            execute: () => this.messageService.info('Hello World'),
+        });
     }
 
     registerToolbarItems(registry: TabBarToolbarRegistry): void {
@@ -75,7 +94,32 @@ export class VSXExtensionsContribution extends AbstractViewContribution<VSXExten
             priority: 1,
             onDidChange: this.model.onDidChange
         });
+
+        this.registerMoreToolbarItem({
+            id: VSXExtensionsCommands.HELLO_WORLD.id,
+            command: VSXExtensionsCommands.HELLO_WORLD.id,
+            tooltip: VSXExtensionsCommands.HELLO_WORLD.label,
+            group: 'more'
+        });
     }
+
+    public registerMoreToolbarItem = (item: Mutable<TabBarToolbarItem>) => {
+        const commandId = item.command;
+        const id = 'vsxExtensions.tabbar.toolbar.' + commandId;
+        const command = this.commandRegistry.getCommand(commandId);
+        this.commandRegistry.registerCommand({ id, iconClass: command && command.iconClass }, {
+            execute: (w, ...args) => w instanceof VSXExtensionsViewContainer
+                && this.commandRegistry.executeCommand(commandId, ...args),
+            isEnabled: (w, ...args) => w instanceof VSXExtensionsViewContainer
+                && this.commandRegistry.isEnabled(commandId, ...args),
+            isVisible: (w, ...args) => w instanceof VSXExtensionsViewContainer
+                && this.commandRegistry.isVisible(commandId, ...args),
+            isToggled: (w, ...args) => w instanceof VSXExtensionsViewContainer
+                && this.commandRegistry.isToggled(commandId, ...args),
+        });
+        item.command = id;
+        this.tabbarToolbarRegistry.registerItem(item);
+    };
 
     registerColors(colors: ColorRegistry): void {
         // VS Code colors should be aligned with https://code.visualstudio.com/api/references/theme-color#extensions
