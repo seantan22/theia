@@ -25,6 +25,11 @@ import { ColorRegistry, Color } from '@theia/core/lib/browser/color-registry';
 import { TabBarToolbarContribution, TabBarToolbarItem, TabBarToolbarRegistry } from '@theia/core/lib/browser/shell/tab-bar-toolbar';
 import { FrontendApplicationContribution, FrontendApplication } from '@theia/core/lib/browser/frontend-application';
 import { MessageService, Mutable } from '@theia/core/lib/common';
+import { FileDialogService, OpenFileDialogProps } from '@theia/filesystem/lib/browser';
+import { WorkspaceService } from '@theia/workspace/lib/browser';
+import { PluginServer } from '@theia/plugin-ext/lib/common';
+import URI from '@theia/core/lib/common/uri';
+import { LabelProvider } from '@theia/core/lib/browser';
 
 export namespace VSXExtensionsCommands {
     export const CLEAR_ALL: Command = {
@@ -38,23 +43,26 @@ export namespace VSXExtensionsCommands {
         category: 'Extensions',
         label: 'Hello World'
     };
+    export const INSTALL_FROM_VSIX: Command & { dialogLabel: string } = {
+        id: 'vsxExtensions.installFromVSIX',
+        category: 'Extensions',
+        label: 'Install from VSIX...',
+        dialogLabel: 'Install from VSIX'
+    };
 }
 
 @injectable()
 export class VSXExtensionsContribution extends AbstractViewContribution<VSXExtensionsViewContainer>
     implements ColorContribution, FrontendApplicationContribution, TabBarToolbarContribution {
 
-    @inject(VSXExtensionsModel)
-    protected readonly model: VSXExtensionsModel;
-
-    @inject(CommandRegistry)
-    protected readonly commandRegistry: CommandRegistry;
-
-    @inject(TabBarToolbarRegistry)
-    protected readonly tabbarToolbarRegistry: TabBarToolbarRegistry;
-
-    @inject(MessageService)
-    protected readonly messageService: MessageService;
+    @inject(VSXExtensionsModel) protected readonly model: VSXExtensionsModel;
+    @inject(CommandRegistry) protected readonly commandRegistry: CommandRegistry;
+    @inject(PluginServer) protected readonly pluginServer: PluginServer;
+    @inject(TabBarToolbarRegistry) protected readonly tabbarToolbarRegistry: TabBarToolbarRegistry;
+    @inject(FileDialogService) protected readonly fileDialogService: FileDialogService;
+    @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService;
+    @inject(MessageService) protected readonly messageService: MessageService;
+    @inject(LabelProvider) protected readonly labelProvider: LabelProvider;
 
     constructor() {
         super({
@@ -84,6 +92,11 @@ export class VSXExtensionsContribution extends AbstractViewContribution<VSXExten
         commands.registerCommand(VSXExtensionsCommands.HELLO_WORLD, {
             execute: () => this.messageService.info('Hello World'),
         });
+
+        commands.registerCommand(VSXExtensionsCommands.INSTALL_FROM_VSIX, {
+            isEnabled: () => true,
+            execute: () => this.installFromVSIX()
+        });
     }
 
     registerToolbarItems(registry: TabBarToolbarRegistry): void {
@@ -99,10 +112,20 @@ export class VSXExtensionsContribution extends AbstractViewContribution<VSXExten
             id: VSXExtensionsCommands.HELLO_WORLD.id,
             command: VSXExtensionsCommands.HELLO_WORLD.id,
             tooltip: VSXExtensionsCommands.HELLO_WORLD.label,
-            group: 'more'
+            group: 'other_1'
+        });
+
+        this.registerMoreToolbarItem({
+            id: VSXExtensionsCommands.INSTALL_FROM_VSIX.id,
+            command: VSXExtensionsCommands.INSTALL_FROM_VSIX.id,
+            tooltip: VSXExtensionsCommands.INSTALL_FROM_VSIX.label,
+            group: 'other_2'
         });
     }
 
+    /**
+     * Register commands to the `More Actions...` extensions toolbar item.
+     */
     public registerMoreToolbarItem = (item: Mutable<TabBarToolbarItem>) => {
         const commandId = item.command;
         const id = 'vsxExtensions.tabbar.toolbar.' + commandId;
@@ -150,5 +173,33 @@ export class VSXExtensionsContribution extends AbstractViewContribution<VSXExten
             return fn(widget);
         }
         return false;
+    }
+
+    /**
+     * Installs a local .vsix file after prompting the `Open File` dialog. Resolves to the URI of the file.
+     */
+    protected async installFromVSIX(): Promise<URI | undefined> {
+        const props: OpenFileDialogProps = {
+            title: VSXExtensionsCommands.INSTALL_FROM_VSIX.dialogLabel,
+            openLabel: 'Install',
+            filters: { 'VSIX Extensions (*.vsix)': ['vsix'] }
+        };
+        const [rootStat] = await this.workspaceService.roots;
+        const destinationFileUri = await this.fileDialogService.showOpenDialog(props, rootStat);
+        if (destinationFileUri) {
+            if (destinationFileUri.path.toString().endsWith('.vsix')) {
+                const pluginName = this.labelProvider.getName(destinationFileUri);
+                try {
+                    await this.pluginServer.deploy(`local-file:${destinationFileUri.path}`);
+                    this.messageService.info(`Completed installing ${pluginName} from VSIX.`);
+                } catch {
+                    this.messageService.error(`Failed to install ${pluginName} from VSIX.`);
+                }
+            } else {
+                this.messageService.error('The selected file is not a valid "*.vsix" plugin.');
+            }
+            return destinationFileUri;
+        }
+        return undefined;
     }
 }
