@@ -190,7 +190,8 @@ export class VSXExtensionsContribution extends AbstractViewContribution<VSXExten
             if (destinationFileUri.path.toString().endsWith('.vsix')) {
                 const pluginName = this.labelProvider.getName(destinationFileUri);
                 try {
-                    await this.pluginServer.deploy(`local-file:${destinationFileUri.path}`);
+                    // await this.pluginServer.deploy(`local-file:${destinationFileUri.path}`);
+                    this.commandRegistry.executeCommand('VscodeCommands.INSTALL_FROM_VSIX.id', destinationFileUri);
                     this.messageService.info(`Completed installing ${pluginName} from VSIX.`);
                 } catch {
                     this.messageService.error(`Failed to install ${pluginName} from VSIX.`);

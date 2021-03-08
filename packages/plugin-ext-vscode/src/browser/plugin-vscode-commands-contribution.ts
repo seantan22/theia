@@ -78,6 +78,10 @@ export namespace VscodeCommands {
     export const DIFF: Command = {
         id: 'vscode.diff'
     };
+
+    export const INSTALL_FROM_VSIX = {
+        id: 'workbench.extensions.installExtension'
+    };
 }
 
 @injectable()
@@ -212,8 +216,9 @@ export class PluginVscodeCommandsContribution implements CommandContribution {
         commands.registerCommand({ id: 'workbench.action.openSettings' }, {
             execute: () => commands.executeCommand(CommonCommands.OPEN_PREFERENCES.id)
         });
-        commands.registerCommand({ id: 'workbench.extensions.installExtension' }, {
-            execute: async (vsixUriOrExtensionId: UriComponents | string) => {
+        commands.registerCommand({ id: VscodeCommands.INSTALL_FROM_VSIX.id }, {
+            execute: async (vsixUriOrExtensionId: UriComponents | URI | string) => {
+                console.log('executed install');
                 if (typeof vsixUriOrExtensionId === 'string') {
                     this.pluginServer.deploy(`vscode:extension/${vsixUriOrExtensionId}`);
                 } else {
