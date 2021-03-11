@@ -24,6 +24,17 @@ import { ColorContribution } from '@theia/core/lib/browser/color-application-con
 import { ColorRegistry, Color } from '@theia/core/lib/browser/color-registry';
 import { TabBarToolbarContribution, TabBarToolbarRegistry } from '@theia/core/lib/browser/shell/tab-bar-toolbar';
 import { FrontendApplicationContribution, FrontendApplication } from '@theia/core/lib/browser/frontend-application';
+import { MenuContribution, MenuModelRegistry } from '@theia/core/lib/common/menu';
+import { MANAGE_EXTENSION_MENU } from './vsx-extension';
+import { QuickPickItem, QuickPickService } from '@theia/core/lib/common/quick-pick-service';
+import { VSXRegistryAPI } from '../common/vsx-registry-api';
+import * as moment from 'moment';
+import { PluginServer } from '@theia/plugin-ext/lib/common';
+import { MessageService } from '@theia/core/lib/common';
+
+interface QuickPickVersionItem {
+    version: string | undefined;
+}
 
 export namespace VSXExtensionsCommands {
     export const CLEAR_ALL: Command = {
@@ -32,14 +43,28 @@ export namespace VSXExtensionsCommands {
         label: 'Clear Search Results',
         iconClass: 'clear-all'
     };
+    export const INSTALL_ANOTHER_VERSION: Command = {
+        id: 'vsxExtensions.installAnotherVersion',
+        label: 'Install Another Version...'
+    };
 }
 
 @injectable()
 export class VSXExtensionsContribution extends AbstractViewContribution<VSXExtensionsViewContainer>
-    implements ColorContribution, FrontendApplicationContribution, TabBarToolbarContribution {
+    implements ColorContribution, FrontendApplicationContribution, TabBarToolbarContribution, MenuContribution {
 
     @inject(VSXExtensionsModel)
     protected readonly model: VSXExtensionsModel;
+    @inject(QuickPickService)
+    protected readonly quickPickService: QuickPickService;
+    @inject(VSXRegistryAPI)
+    protected readonly vsxRegistryAPI: VSXRegistryAPI;
+    @inject(CommandRegistry)
+    protected readonly commandRegistry: CommandRegistry;
+    @inject(PluginServer)
+    protected readonly pluginServer: PluginServer;
+    @inject(MessageService)
+    protected readonly messageService: MessageService;
 
     constructor() {
         super({
@@ -65,6 +90,33 @@ export class VSXExtensionsContribution extends AbstractViewContribution<VSXExten
             isEnabled: w => this.withWidget(w, () => !!this.model.search.query),
             isVisible: w => this.withWidget(w, () => true)
         });
+        commands.registerCommand({ id: VSXExtensionsCommands.INSTALL_ANOTHER_VERSION.id }, {
+            execute: async (extensionId: string, currentVersion: string) => {
+                const extensions = await this.vsxRegistryAPI.getAllVersions(extensionId);
+                const latestCompatibleExtension = await this.vsxRegistryAPI.getLatestCompatibleExtensionVersion(extensionId);
+                if (latestCompatibleExtension) {
+                    extensions.length = extensions.findIndex(ext => ext.version === latestCompatibleExtension.version) + 1;
+                }
+                const items: QuickPickItem<QuickPickVersionItem>[] = [];
+                extensions.forEach(ext => {
+                    let publishedDate = moment(ext.timestamp).fromNow();
+                    if (currentVersion === ext.version) {
+                        publishedDate += ' (Current)';
+                    }
+                    items.push({
+                        label: ext.version,
+                        value: { version: ext.version },
+                        description: publishedDate
+                    });
+                });
+                const selectedVersion = await this.quickPickService.show(items, { placeholder: 'Select Version to Install', runIfSingle: false });
+                if (selectedVersion && selectedVersion.version !== currentVersion) {
+                    const selectedExtension = extensionId;
+                    await this.pluginServer.undeploy(selectedExtension);
+                    await this.commandRegistry.executeCommand('workbench.extensions.installExtension', selectedExtension, selectedVersion.version);
+                }
+            }
+        });
     }
 
     registerToolbarItems(registry: TabBarToolbarRegistry): void {
@@ -74,6 +126,13 @@ export class VSXExtensionsContribution extends AbstractViewContribution<VSXExten
             tooltip: VSXExtensionsCommands.CLEAR_ALL.label,
             priority: 1,
             onDidChange: this.model.onDidChange
+        });
+    }
+
+    registerMenus(menus: MenuModelRegistry): void {
+        menus.registerMenuAction(MANAGE_EXTENSION_MENU, {
+            commandId: VSXExtensionsCommands.INSTALL_ANOTHER_VERSION.id,
+            label: VSXExtensionsCommands.INSTALL_ANOTHER_VERSION.label
         });
     }
 
@@ -107,4 +166,5 @@ export class VSXExtensionsContribution extends AbstractViewContribution<VSXExten
         }
         return false;
     }
+
 }

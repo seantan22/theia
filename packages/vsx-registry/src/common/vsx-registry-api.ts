@@ -93,10 +93,11 @@ export class VSXRegistryAPI {
         return searchUri;
     }
 
-    async getExtension(id: string): Promise<VSXExtensionRaw> {
+    async getExtension(id: string, extVersion?: string): Promise<VSXExtensionRaw> {
         const apiUri = await this.environment.getRegistryApiUri();
         const param: QueryParam = {
-            extensionId: id
+            extensionId: id,
+            extensionVersion: extVersion,
         };
         const result = await this.postJson<QueryParam, QueryResult>(apiUri.resolve('-/query').toString(), param);
         if (result.extensions && result.extensions.length > 0) {

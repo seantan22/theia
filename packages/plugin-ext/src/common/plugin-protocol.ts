@@ -321,7 +321,7 @@ export interface PluginDeployerResolver {
 
     accept(pluginSourceId: string): boolean;
 
-    resolve(pluginResolverContext: PluginDeployerResolverContext): Promise<void>;
+    resolve(pluginResolverContext: PluginDeployerResolverContext, version?: string): Promise<void>;
 
 }
 
@@ -847,7 +847,7 @@ export interface PluginServer {
      *
      * @param type whether a plugin is installed by a system or a user, defaults to a user
      */
-    deploy(pluginEntry: string, type?: PluginType): Promise<void>;
+    deploy(pluginEntry: string, type?: PluginType, version?: string): Promise<void>;
 
     undeploy(pluginId: string): Promise<void>;
 

@@ -213,9 +213,13 @@ export class PluginVscodeCommandsContribution implements CommandContribution {
             execute: () => commands.executeCommand(CommonCommands.OPEN_PREFERENCES.id)
         });
         commands.registerCommand({ id: 'workbench.extensions.installExtension' }, {
-            execute: async (vsixUriOrExtensionId: UriComponents | string) => {
+            execute: async (vsixUriOrExtensionId: UriComponents | string, version?: string) => {
                 if (typeof vsixUriOrExtensionId === 'string') {
-                    this.pluginServer.deploy(`vscode:extension/${vsixUriOrExtensionId}`);
+                    if (version) {
+                        this.pluginServer.deploy(`vscode:extension/${vsixUriOrExtensionId}`, undefined, version);
+                    } else {
+                        this.pluginServer.deploy(`vscode:extension/${vsixUriOrExtensionId}`);
+                    }
                 } else {
                     this.pluginServer.deploy(`local-file:${URI.revive(vsixUriOrExtensionId).fsPath}`);
                 }

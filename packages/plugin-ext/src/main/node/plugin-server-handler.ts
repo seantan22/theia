@@ -30,12 +30,20 @@ export class PluginServerHandler implements PluginServer {
     @inject(PluginsKeyValueStorage)
     protected readonly pluginsKeyValueStorage: PluginsKeyValueStorage;
 
-    deploy(pluginEntry: string, arg2?: PluginType | CancellationToken): Promise<void> {
+    deploy(pluginEntry: string, arg2?: PluginType | CancellationToken, version?: string): Promise<void> {
         const type = typeof arg2 === 'number' ? arg2 as PluginType : undefined;
-        return this.doDeploy(pluginEntry, type);
+        if (version) {
+            return this.doDeploy(pluginEntry, type, version);
+        } else {
+            return this.doDeploy(pluginEntry, type);
+        }
     }
-    protected doDeploy(pluginEntry: string, type: PluginType = PluginType.User): Promise<void> {
-        return this.pluginDeployer.deploy(pluginEntry, type);
+    protected doDeploy(pluginEntry: string, type: PluginType = PluginType.User, version?: string): Promise<void> {
+        if (version) {
+            return this.pluginDeployer.deploy(pluginEntry, type, version);
+        } else {
+            return this.pluginDeployer.deploy(pluginEntry, type);
+        }
     }
 
     undeploy(pluginId: string): Promise<void> {

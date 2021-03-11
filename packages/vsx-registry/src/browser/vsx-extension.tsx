@@ -27,6 +27,10 @@ import { Endpoint } from '@theia/core/lib/browser/endpoint';
 import { VSXEnvironment } from '../common/vsx-environment';
 import { VSXExtensionsSearchModel } from './vsx-extensions-search-model';
 import { VSXExtensionNamespaceAccess, VSXUser } from '../common/vsx-registry-types';
+import { CommandRegistry, MenuPath } from '@theia/core/lib/common';
+import { ContextMenuRenderer } from '@theia/core/lib/browser';
+
+export const MANAGE_EXTENSION_MENU: MenuPath = ['manage_extension_menu'];
 
 @injectable()
 export class VSXExtensionData {
@@ -92,11 +96,17 @@ export class VSXExtension implements VSXExtensionData, TreeElement {
     @inject(ProgressService)
     protected readonly progressService: ProgressService;
 
+    @inject(CommandRegistry)
+    protected readonly commandRegistry: CommandRegistry;
+
     @inject(VSXEnvironment)
     readonly environment: VSXEnvironment;
 
     @inject(VSXExtensionsSearchModel)
     readonly search: VSXExtensionsSearchModel;
+
+    @inject(ContextMenuRenderer)
+    protected readonly contextMenuRenderer: ContextMenuRenderer;
 
     protected readonly data: Partial<VSXExtensionData> = {};
 
@@ -253,6 +263,18 @@ export class VSXExtension implements VSXExtensionData, TreeElement {
         }
     }
 
+    manage(e: React.MouseEvent<HTMLElement, MouseEvent>, extensionId: string, currentVersion: string | undefined): void {
+        e.preventDefault();
+        this.contextMenuRenderer.render({
+            menuPath: MANAGE_EXTENSION_MENU,
+            anchor: {
+                x: e.clientX,
+                y: e.clientY,
+            },
+            args: [extensionId, currentVersion]
+        });
+    }
+
     async open(options: OpenerOptions = { mode: 'reveal' }): Promise<void> {
         await this.doOpen(this.uri, options);
     }
@@ -289,6 +311,10 @@ export abstract class AbstractVSXExtensionComponent extends React.Component<Abst
         }
     };
 
+    readonly manage = (e: React.MouseEvent<HTMLElement, MouseEvent>, extensionId: string, currentVersion: string | undefined) => {
+        this.props.extension.manage(e, extensionId, currentVersion);
+    };
+
     protected renderAction(): React.ReactNode {
         const extension = this.props.extension;
         const { builtin, busy, installed } = extension;
@@ -302,7 +328,10 @@ export abstract class AbstractVSXExtensionComponent extends React.Component<Abst
             return <button className="theia-button action prominent theia-mod-disabled">Installing</button>;
         }
         if (installed) {
-            return <button className="theia-button action" onClick={this.uninstall}>Uninstall</button>;
+            return <div className="theia-vsx-extensions-actions">
+                <button className="theia-button action" onClick={this.uninstall}>Uninstall</button>
+                <div className="codicon codicon-settings-gear manage" onClick={e => this.manage(e, this.props.extension.id, this.props.extension.version)}></div>
+            </div>;
         }
         return <button className="theia-button prominent action" onClick={this.install}>Install</button>;
     }

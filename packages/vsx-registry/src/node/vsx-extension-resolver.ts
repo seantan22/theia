@@ -24,6 +24,7 @@ import URI from '@theia/core/lib/common/uri';
 import { PluginDeployerResolver, PluginDeployerResolverContext } from '@theia/plugin-ext/lib/common/plugin-protocol';
 import { VSXExtensionUri } from '../common/vsx-extension-uri';
 import { VSXRegistryAPI } from '../common/vsx-registry-api';
+import { VSXExtensionRaw } from '../common/vsx-registry-types';
 
 @injectable()
 export class VSXExtensionResolver implements PluginDeployerResolver {
@@ -43,23 +44,31 @@ export class VSXExtensionResolver implements PluginDeployerResolver {
         return !!VSXExtensionUri.toId(new URI(pluginId));
     }
 
-    async resolve(context: PluginDeployerResolverContext): Promise<void> {
+    async resolve(context: PluginDeployerResolverContext, version?: string): Promise<void> {
         const id = VSXExtensionUri.toId(new URI(context.getOriginId()));
         if (!id) {
             return;
         }
-        console.log(`[${id}]: trying to resolve latest version...`);
-        const extension = await this.api.getLatestCompatibleExtensionVersion(id);
-        if (!extension) {
-            return;
+
+        let extensionVersion: string | undefined;
+        let extension: VSXExtensionRaw | undefined;
+        if (version) {
+            extensionVersion = version;
+            extension = await this.api.getExtension(id, extensionVersion);
+        } else {
+            console.log(`[${id}]: trying to resolve latest version...`);
+            extension = await this.api.getLatestCompatibleExtensionVersion(id);
+            if (!extension) {
+                return;
+            }
+            if (extension.error) {
+                throw new Error(extension.error);
+            }
+            extensionVersion = extension.version;
         }
-        if (extension.error) {
-            throw new Error(extension.error);
-        }
-        const resolvedId = id + '-' + extension.version;
+        const resolvedId = id + '-' + extensionVersion;
         const downloadUrl = extension.files.download;
         console.log(`[${id}]: resolved to '${resolvedId}'`);
-
         const extensionPath = path.resolve(this.downloadPath, path.basename(downloadUrl));
         console.log(`[${resolvedId}]: trying to download from "${downloadUrl}"...`);
         if (!await this.download(downloadUrl, extensionPath)) {

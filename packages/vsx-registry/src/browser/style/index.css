@@ -130,6 +130,16 @@
     margin-top: 2px;
 }
 
+.theia-vsx-extension-action-bar .theia-vsx-extensions-actions {
+    display: inline;
+}
+
+.theia-vsx-extension-action-bar .theia-vsx-extensions-actions .manage {
+    padding: 2px var(--theia-ui-padding) !important;
+    opacity: .7;
+    vertical-align: middle;
+}
+
 /* Editor Section */
 
 .theia-vsx-extension-editor {

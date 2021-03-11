@@ -132,14 +132,23 @@ export class PluginDeployerImpl implements PluginDeployer {
         }
     }
 
-    async deploy(pluginEntry: string, type: PluginType = PluginType.System): Promise<void> {
+    async deploy(pluginEntry: string, type: PluginType = PluginType.System, version?: string): Promise<void> {
         const startDeployTime = performance.now();
-        await this.deployMultipleEntries([pluginEntry], type);
+        if (version) {
+            await this.deployMultipleEntries([pluginEntry], type, version);
+        } else {
+            await this.deployMultipleEntries([pluginEntry], type);
+        }
         this.logMeasurement('Deploy plugin entry', startDeployTime);
     }
 
-    protected async deployMultipleEntries(pluginEntries: ReadonlyArray<string>, type: PluginType = PluginType.System): Promise<void> {
-        const pluginsToDeploy = await this.resolvePlugins(pluginEntries, type);
+    protected async deployMultipleEntries(pluginEntries: ReadonlyArray<string>, type: PluginType = PluginType.System, version?: string): Promise<void> {
+        let pluginsToDeploy = [];
+        if (version) {
+            pluginsToDeploy = await this.resolvePlugins(pluginEntries, type, version);
+        } else {
+            pluginsToDeploy = await this.resolvePlugins(pluginEntries, type);
+        }
         await this.deployPlugins(pluginsToDeploy);
     }
 
@@ -155,7 +164,7 @@ export class PluginDeployerImpl implements PluginDeployer {
      * ]);
      * ```
      */
-    async resolvePlugins(pluginEntries: ReadonlyArray<string>, type: PluginType): Promise<PluginDeployerEntry[]> {
+    async resolvePlugins(pluginEntries: ReadonlyArray<string>, type: PluginType, version?: string): Promise<PluginDeployerEntry[]> {
         const visited = new Set<string>();
         const pluginsToDeploy = new Map<string, PluginDeployerEntry>();
 
@@ -175,7 +184,12 @@ export class PluginDeployerImpl implements PluginDeployer {
             queue = [];
             await Promise.all(workload.map(async current => {
                 try {
-                    const pluginDeployerEntries = await this.resolvePlugin(current, type);
+                    let pluginDeployerEntries = [];
+                    if (version) {
+                        pluginDeployerEntries = await this.resolvePlugin(current, type, version);
+                    } else {
+                        pluginDeployerEntries = await this.resolvePlugin(current, type);
+                    }
                     await this.applyFileHandlers(pluginDeployerEntries);
                     await this.applyDirectoryFileHandlers(pluginDeployerEntries);
                     for (const deployerEntry of pluginDeployerEntries) {
@@ -273,7 +287,7 @@ export class PluginDeployerImpl implements PluginDeployer {
     /**
      * Check a plugin ID see if there are some resolvers that can handle it. If there is a matching resolver, then we resolve the plugin
      */
-    public async resolvePlugin(pluginId: string, type: PluginType = PluginType.System): Promise<PluginDeployerEntry[]> {
+    public async resolvePlugin(pluginId: string, type: PluginType = PluginType.System, version?: string): Promise<PluginDeployerEntry[]> {
         const pluginDeployerEntries: PluginDeployerEntry[] = [];
         const foundPluginResolver = this.pluginResolvers.find(pluginResolver => pluginResolver.accept(pluginId));
         // there is a resolver for the input
@@ -282,7 +296,11 @@ export class PluginDeployerImpl implements PluginDeployer {
             // create context object
             const context = new PluginDeployerResolverContextImpl(foundPluginResolver, pluginId);
 
-            await foundPluginResolver.resolve(context);
+            if (version) {
+                await foundPluginResolver.resolve(context, version);
+            } else {
+                await foundPluginResolver.resolve(context);
+            }
 
             context.getPlugins().forEach(entry => {
                 entry.type = type;
